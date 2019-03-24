@@ -57,7 +57,8 @@ void Threads::titles(void)
     }
 
     isLoadingTitles = true;
-    loadTitles(forceRefresh);
+    //loadTitles(forceRefresh);
+    loadTitlesNDS(forceRefresh);
     forceRefresh = true;
     isLoadingTitles = false;
 }

@@ -55,11 +55,13 @@ int main() {
                 // If the "New..." entry is selected...
                 if (0 == Gui::scrollableIndex())
                 {
-                    io::backup(Gui::index());
+                    //io::backup(Gui::index());
+                    io::backupNDS(Gui::index());
                 }
                 else
                 {
-                    io::restore(Gui::index());
+                    //io::restore(Gui::index());
+                    io::restoreNDS(Gui::index());
                 }
             }
             else
@@ -163,14 +165,16 @@ int main() {
                 std::vector<size_t> list = Gui::selectedEntries();
                 for (size_t i = 0, sz = list.size(); i < sz; i++)
                 {
-                    io::backup(list.at(i));
+                    //io::backup(list.at(i));
+                    io::backupNDS(list.at(i));
                 }
                 Gui::clearSelectedEntries();
                 Gui::updateButtonsColor();
             }
             else if (Gui::bottomScroll())
             {
-                io::backup(Gui::index());
+                //io::backup(Gui::index());
+                io::backupNDS(Gui::index());
             }
         }
 
@@ -183,7 +187,8 @@ int main() {
             }
             else if (Gui::bottomScroll())
             {
-                io::restore(Gui::index());
+                //io::restore(Gui::index());
+                io::restoreNDS(Gui::index());
             }
         }
 

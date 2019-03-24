@@ -472,6 +472,178 @@ void io::restore(size_t index)
     Gui::createInfo("Success!", Gui::nameFromCell(cellIndex) + "\nhas been restored successfully.");
 }
 
+void io::backupNDS(size_t index)
+{
+    // check if multiple selection is enabled and don't ask for confirmation if that's the case
+    if (!Gui::multipleSelectionEnabled())
+    {
+        if (!Gui::askForConfirmation("Backup selected save?"))
+        {
+            return;
+        }
+    }
+
+    const Mode_t mode = Archive::mode();
+    const size_t cellIndex = Gui::scrollableIndex();
+    const bool isNewFolder = cellIndex == 0;
+    Result res = 0;
+    
+    Title title;
+    getTitle(title, index);
+    
+    std::u16string ndssavesPath = StringUtils::UTF8toUTF16("/roms/nds/saves/");
+    
+    {
+        std::string suggestion = DateTime::dateTimeStr();
+        
+        std::u16string customPath;
+        if (Gui::multipleSelectionEnabled())
+        {
+            customPath = isNewFolder ? StringUtils::UTF8toUTF16(suggestion.c_str()) : StringUtils::UTF8toUTF16("");
+        }
+        else
+        {
+            customPath = isNewFolder ? KeyboardManager::get().keyboard(suggestion) : StringUtils::UTF8toUTF16("");
+        }
+        
+        std::u16string dstPath;
+        if (!isNewFolder)
+        {
+            // we're overriding an existing folder
+            dstPath = mode == MODE_SAVE ? title.fullSavePath(cellIndex) : title.fullSavePath(cellIndex);
+        }
+        else
+        {
+            dstPath = mode == MODE_SAVE ? title.savePath() : title.savePath();
+            dstPath += StringUtils::UTF8toUTF16("/") + customPath;
+        } 
+        
+        if (!isNewFolder || io::directoryExists(Archive::sdmc(), dstPath))
+        {
+            res = FSUSER_DeleteDirectoryRecursively(Archive::sdmc(), fsMakePath(PATH_UTF16, dstPath.data()));
+            if (R_FAILED(res))
+            {
+                Gui::createError(res, "Failed to delete the existing\nbackup directory recursively.");
+                return;
+            }
+        }
+        
+        res = io::createDirectory(Archive::sdmc(), dstPath);
+        if (R_FAILED(res))
+        {
+            Gui::createError(res, "Failed to create destination directory.");
+            return;
+        }
+        
+        std::u16string copyPath = dstPath + StringUtils::UTF8toUTF16("/") + StringUtils::UTF8toUTF16(title.shortDescription().c_str()) + StringUtils::UTF8toUTF16(".sav");
+        
+        std::u16string srcPath = ndssavesPath + title.extdataPath();
+        srcPath.replace(srcPath.end()-4, srcPath.end(), StringUtils::UTF8toUTF16(".sav"));
+        
+        FSStream saveStream(Archive::sdmc(), srcPath, FS_OPEN_READ);
+        if (!saveStream.good())
+        {
+            saveStream.close();
+            Gui::createError(saveStream.result(), "Save data must be created first.");
+            FSUSER_DeleteDirectoryRecursively(Archive::sdmc(), fsMakePath(PATH_UTF16, dstPath.data()));
+            return;
+        }
+            
+        
+        u32 saveSize = saveStream.size();
+        u32 sectorSize = (saveSize < 0x10000) ? saveSize : 0x10000;
+        
+        u8* saveFile = new u8[saveSize];
+        for (u32 i = 0; i < saveSize/sectorSize; ++i)
+        {
+            saveStream.read(saveFile + sectorSize*i, sectorSize);
+            Gui::drawCopy(StringUtils::UTF8toUTF16(title.shortDescription().c_str()) + StringUtils::UTF8toUTF16(".sav"), sectorSize*(i+1), saveSize);
+        }
+        saveStream.close();
+        
+        FSStream stream(Archive::sdmc(), copyPath, FS_OPEN_WRITE, saveSize);
+        if (stream.good())
+        {
+            stream.write(saveFile, saveSize);
+        }
+        else
+        {
+            delete[] saveFile;
+            stream.close();
+            Gui::createError(res, "Failed to backup save.");
+            FSUSER_DeleteDirectoryRecursively(Archive::sdmc(), fsMakePath(PATH_UTF16, dstPath.data()));
+            return;			
+        }
+        
+        delete[] saveFile;
+        stream.close();
+        refreshDirectories(title.id());
+    }
+    
+    Gui::createInfo("Success!", "Progress correctly saved to disk.");
+}
+
+void io::restoreNDS(size_t index)
+{
+    const Mode_t mode = Archive::mode();
+    const size_t cellIndex = Gui::scrollableIndex();
+    if (cellIndex == 0 || !Gui::askForConfirmation("Restore selected save?"))
+    {
+        return;
+    }
+    
+    Result res = 0;
+    
+    Title title;
+    getTitle(title, index);
+    
+    std::u16string ndssavesPath = StringUtils::UTF8toUTF16("/roms/nds/saves/");
+    
+    {
+        std::u16string srcPath = title.fullSavePath(cellIndex);
+        srcPath += StringUtils::UTF8toUTF16("/") + StringUtils::UTF8toUTF16(title.shortDescription().c_str()) + StringUtils::UTF8toUTF16(".sav");
+
+        FSStream stream(Archive::sdmc(), srcPath, FS_OPEN_READ);
+        if (!stream.good())
+        {
+            stream.close();
+            Gui::createError(stream.result(), "Failed to read save file backup.");
+            return;
+        }
+        
+        u32 saveSize = stream.size();
+        u32 sectorSize = (saveSize < 0x10000) ? saveSize : 0x10000;
+        
+        u8* saveFile = new u8[saveSize];
+        for (u32 i = 0; i < saveSize/sectorSize; ++i)
+        {
+            stream.read(saveFile + sectorSize*i, sectorSize);
+            Gui::drawCopy(StringUtils::UTF8toUTF16(title.shortDescription().c_str()) + StringUtils::UTF8toUTF16(".sav"), sectorSize*(i+1), saveSize);
+        }
+        stream.close();
+        
+        std::u16string dstPath = ndssavesPath + title.extdataPath();
+        dstPath.replace(dstPath.end()-4, dstPath.end(), StringUtils::UTF8toUTF16(".sav"));
+        
+        FSStream saveStream(Archive::sdmc(), dstPath, FS_OPEN_WRITE, saveSize);
+        if (saveStream.good())
+        {
+            saveStream.write(saveFile, saveSize);
+        }
+        else
+        {
+            delete[] saveFile;
+            saveStream.close();
+            Gui::createError(res, "Failed to restore save.");
+            return;			
+        }
+        
+        delete[] saveFile;
+    }
+    
+    Gui::createInfo("Success!", Gui::nameFromCell(cellIndex) + "\nhas been restored successfully.");
+}
+
 void io::deleteBackupFolder(const std::u16string& path)
 {
     Result res = FSUSER_DeleteDirectoryRecursively(Archive::sdmc(), fsMakePath(PATH_UTF16, path.data()));

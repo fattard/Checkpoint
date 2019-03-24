@@ -31,13 +31,13 @@ include $(DEVKITARM)/3ds_rules
 #     - icon.png
 #     - <libctru folder>/default_icon.png
 #---------------------------------------------------------------------------------
-APP_TITLE		:= 	Checkpoint
+APP_TITLE		:= 	Checkpoint-NDS
 APP_DESCRIPTION	:=	Fast and simple save manager
-APP_AUTHOR		:=	Bernardo Giordano
+APP_AUTHOR		:=	Bernardo Giordano / FATTARD
 
 VERSION_MAJOR := 3
 VERSION_MINOR := 6
-VERSION_MICRO := 0
+VERSION_MICRO := 1
 
 TARGET			:=	$(subst $e ,_,$(notdir $(APP_TITLE)))
 OUTDIR			:=	out

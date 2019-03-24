@@ -190,6 +190,61 @@ bool Title::load(u64 _id, FS_MediaType _media, FS_CardType _card)
     return loadTitle;
 }
 
+bool Title::loadNDS(const std::u16string& romPath, const std::u16string& romName)
+{
+    bool loadTitle = false;
+    mId = 0;
+    mMedia = MEDIATYPE_GAME_CARD;
+    mCard = CARD_TWL;
+
+    FSStream stream(Archive::sdmc(), romPath, FS_OPEN_READ);
+    if (!stream.good())
+    {
+        stream.close();
+        return false;
+    }
+    
+    u8* headerData = new u8[0x3B4];
+    
+    stream.read(headerData, 0x3B4);
+    
+    stream.close();
+    
+    char _cardTitle[14] = {0};
+    char _gameCode[6] = {0};
+    
+    std::copy(headerData, headerData + 12, _cardTitle);
+    std::copy(headerData + 12, headerData + 16, _gameCode);
+    _cardTitle[13] = '\0';
+    _gameCode[5] = '\0';
+    
+    delete[] headerData;
+    
+    mShortDescription = StringUtils::removeForbiddenCharacters(StringUtils::UTF8toUTF16(_cardTitle));
+    mLongDescription = romName;
+    mSavePath = StringUtils::UTF8toUTF16("/3ds/Checkpoint/saves/") + StringUtils::UTF8toUTF16(_gameCode) + StringUtils::UTF8toUTF16(" ") + mShortDescription;
+    mExtdataPath = romName;
+    memset(productCode, 0, 16);
+    
+    mAccessibleSave = true;
+    mAccessibleExtdata = false;
+    
+    loadTitle = true;
+    if (!io::directoryExists(Archive::sdmc(), mSavePath))
+    {
+        Result res = io::createDirectory(Archive::sdmc(), mSavePath);
+        if (R_FAILED(res))
+        {
+            Gui::createError(res, "Failed to create backup directory.");
+        }
+    }
+    
+    mIcon = Gui::TWLIcon();
+    
+    refreshDirectories();
+    return loadTitle;
+}
+
 bool Title::accessibleSave(void)
 {
     return mAccessibleSave;
@@ -205,7 +260,8 @@ std::string Title::mediaTypeString(void)
     switch(mMedia)
     {
         case MEDIATYPE_SD: return "SD Card";
-        case MEDIATYPE_GAME_CARD: return "Cartridge";
+        //case MEDIATYPE_GAME_CARD: return "Cartridge";
+        case MEDIATYPE_GAME_CARD: return "NDS ROM";
         case MEDIATYPE_NAND: return "NAND";
         default: return " ";
     }
@@ -649,6 +705,53 @@ void loadTitles(bool forceRefresh)
     // serialize data
     exportTitleListCache(titleSaves, savecachePath);
     exportTitleListCache(titleExtdatas, extdatacachePath);
+}
+
+void loadTitlesNDS(bool forceRefresh)
+{
+    std::u16string ndsromsPath = StringUtils::UTF8toUTF16("/roms/nds/");
+    
+    // on refreshing
+    titleSaves.clear();
+    titleExtdatas.clear();
+
+    
+    if (io::directoryExists(Archive::sdmc(), ndsromsPath))
+    {
+        Directory items(Archive::sdmc(), ndsromsPath);
+
+        if (items.good())
+        {
+            u8 productCode[16];
+        
+            for (size_t i = 0, sz = items.size(); i < sz; i++)
+            {
+                std::u16string itemPath = ndsromsPath + items.entry(i);
+                
+                if (!items.folder(i))
+                {
+                    if (itemPath.rfind(StringUtils::UTF8toUTF16(".nds")) != std::u16string::npos)
+                    {
+                        Title title;
+                        if (title.loadNDS(itemPath, items.entry(i)))
+                        {
+                            titleSaves.push_back(title);
+                        }
+                    }
+                }
+            }
+        }
+    }
+        
+    std::sort(titleSaves.begin(), titleSaves.end(), [](Title& l, Title& r) {
+        return l.shortDescription() < r.shortDescription() &&
+            Configuration::getInstance().favorite(l.id()) > Configuration::getInstance().favorite(r.id());
+    });
+    
+    std::sort(titleExtdatas.begin(), titleExtdatas.end(), [](Title& l, Title& r) {
+        return l.shortDescription() < r.shortDescription() &&
+            Configuration::getInstance().favorite(l.id()) > Configuration::getInstance().favorite(r.id());
+    });
 }
 
 void getTitle(Title &dst, int i)

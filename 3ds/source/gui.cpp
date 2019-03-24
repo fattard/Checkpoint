@@ -288,7 +288,8 @@ void Gui::init(void)
     C2D_TextParse(&ins3, staticBuf, ".");
     C2D_TextParse(&ins4, staticBuf, "Press \uE073 or START to exit.");
     C2D_TextParse(&version, staticBuf, ver);
-    C2D_TextParse(&checkpoint, staticBuf, "checkpoint");
+    //C2D_TextParse(&checkpoint, staticBuf, "checkpoint");
+    C2D_TextParse(&checkpoint, staticBuf, "checkpoint-nds");
     C2D_TextParse(&c2dId, staticBuf, "ID:");
     C2D_TextParse(&c2dMediatype, staticBuf, "Mediatype:");
     C2D_TextOptimize(&ins1);

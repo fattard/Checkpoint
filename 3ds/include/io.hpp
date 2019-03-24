@@ -40,6 +40,8 @@ namespace io
 {
     void   backup(size_t index);
     void   restore(size_t index);
+    void   backupNDS(size_t index);
+    void   restoreNDS(size_t index);
     
     Result copyDirectory(FS_Archive srcArch, FS_Archive dstArch, const std::u16string& srcPath, const std::u16string& dstPath);
     void   copyFile(FS_Archive srcArch, FS_Archive dstArch, const std::u16string& srcPath, const std::u16string& dstPath);
